@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: thumb-backend
+  mvc:
+    servlet:
+      path: /api
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${suewei.datasource.url}
+    username: ${suewei.datasource.username}
+    password: ${suewei.datasource.password}
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: false
+
