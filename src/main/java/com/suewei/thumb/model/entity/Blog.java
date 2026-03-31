@@ -48,10 +48,12 @@ public class Blog {
     /**
      * 创建时间
      */
+    @TableField("create_time")
     private Date createTime;
 
     /**
      * 更新时间
      */
+    @TableField("update_time")
     private Date updateTime;
 }

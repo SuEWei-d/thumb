@@ -33,6 +33,7 @@ public class Thumb {
     /**
      * 创建时间
      */
+    @TableField("create_time")
     private Date createTime;
 
 }

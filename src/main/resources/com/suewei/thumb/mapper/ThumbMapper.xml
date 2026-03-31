@@ -11,7 +11,4 @@
             <result property="createTime" column="create_time" />
     </resultMap>
 
-    <sql id="Base_Column_List">
-        id,userId,blogId,create_time
-    </sql>
 </mapper>

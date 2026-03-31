@@ -15,8 +15,4 @@
             <result property="updateTime" column="update_time" />
     </resultMap>
 
-    <sql id="Base_Column_List">
-        id,userId,title,coverImg,content,thumbCount,
-        create_time,update_time
-    </sql>
 </mapper>

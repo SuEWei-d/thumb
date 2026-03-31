@@ -1,7 +1,11 @@
 package com.suewei.thumb.service;
 
+import com.suewei.thumb.model.dto.vo.BlogVO;
 import com.suewei.thumb.model.entity.Blog;
 import com.baomidou.mybatisplus.extension.service.IService;
+import jakarta.servlet.http.HttpServletRequest;
+
+import java.util.List;
 
 /**
 * @author ASUS
@@ -10,4 +14,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 */
 public interface BlogService extends IService<Blog> {
 
+    public BlogVO getById(Long id, HttpServletRequest request);
+
+    public List<BlogVO> getBlogVOList(List<Blog> blogList, HttpServletRequest request);
 }
