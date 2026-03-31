@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.suewei.thumb.mapper.BlogMapper">
+
+    <resultMap id="BaseResultMap" type="com.suewei.thumb.model.entity.Blog">
+            <id property="id" column="id" />
+            <result property="userid" column="userId" />
+            <result property="title" column="title" />
+            <result property="coverimg" column="coverImg" />
+            <result property="content" column="content" />
+            <result property="thumbcount" column="thumbCount" />
+            <result property="createTime" column="create_time" />
+            <result property="updateTime" column="update_time" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,userId,title,coverImg,content,thumbCount,
+        create_time,update_time
+    </sql>
+</mapper>
