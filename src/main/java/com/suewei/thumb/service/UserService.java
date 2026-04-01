@@ -18,4 +18,11 @@ public interface UserService extends IService<User> {
      */
     User getLoginer(HttpServletRequest request);
 
+    /**
+     * 登录
+     * @param userId
+     * @param request
+     * @return
+     */
+    User login(Long userId, HttpServletRequest request);
 }

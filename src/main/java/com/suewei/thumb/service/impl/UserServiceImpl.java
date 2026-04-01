@@ -5,8 +5,14 @@ import com.suewei.thumb.constant.UserConstant;
 import com.suewei.thumb.model.entity.User;
 import com.suewei.thumb.service.UserService;
 import com.suewei.thumb.mapper.UserMapper;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+
+import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
 * @author ASUS
@@ -21,7 +27,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     public User getLoginer(HttpServletRequest request) {
         // 从session获取user
         User user = (User)request.getSession().getAttribute(UserConstant.LOGIN_USER);
+
         return user;
+    }
+
+    @Override
+    public User login(Long userId, HttpServletRequest request) {
+        // 从数据库查找用户
+        User user = getBaseMapper().selectById(userId);
+        if (Objects.isNull(user)){
+            throw new RuntimeException("当前用户不存在");
+        }
+        // 将用户存入Session
+        request.getSession().setAttribute(UserConstant.LOGIN_USER, user);
+
+        return user;
+
     }
 }
 

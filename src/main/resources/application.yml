@@ -6,6 +6,13 @@ spring:
   mvc:
     servlet:
       path: /api
+  data:
+    redis:
+      database: 2
+      host: ${suewei.redis.host}
+      password: ${suewei.redis.password}
+      connect-timeout: 5000
+      port: 6379
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: ${suewei.datasource.url}

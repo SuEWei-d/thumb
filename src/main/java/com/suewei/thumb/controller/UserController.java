@@ -32,14 +32,8 @@ public class UserController {
     @GetMapping("/login")
     @Operation(summary = "用户登录")
     public BaseResponse<User> login(Long userId, HttpServletRequest request){
-        // 从数据库查找用户
-        User user = userService.getBaseMapper().selectById(userId);
-        if (Objects.isNull(user)){
-            throw new RuntimeException("当前用户不存在");
-        }
-        // 将用户存入Session
-        request.getSession().setAttribute(UserConstant.LOGIN_USER, user);
 
+        User user = userService.login(userId, request);
         return ResultUtils.success(user);
     }
 
