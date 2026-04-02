@@ -15,6 +15,7 @@ import com.suewei.thumb.service.BlogService;
 import com.suewei.thumb.mapper.BlogMapper;
 import com.suewei.thumb.service.ThumbService;
 import com.suewei.thumb.service.UserService;
+import com.suewei.thumb.util.RedisKeyUtil;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.BeanUtils;
@@ -134,9 +135,11 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog>
         Map<Long, Boolean> result = new HashMap<>();
         List<Long> needDeleteBlogIds = new ArrayList<>(); // 需要异步删除
 
+        String userThumbKey = RedisKeyUtil.getUserThumbKey(userId);
+
         // 批量从Reids获取
         List<String> blogIdStrList = blogIds.stream().map(String::valueOf).collect(Collectors.toList());
-        List<Object> cacheList = redisTemplate.opsForHash().multiGet(ThumbConstant.USER_THUMB_KEY_PREFIX + userId, blogIdStrList);
+        List<Object> cacheList = redisTemplate.opsForHash().multiGet(userThumbKey, blogIdStrList);
 
         // 遍历处理
         int index = 0;
@@ -197,7 +200,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog>
     private void asycDeleteExpiredCache(Long userId, List<Long> needDeleteBlogIds) {
         Thread.startVirtualThread(() -> {
             try {
-                String key = ThumbConstant.USER_THUMB_KEY_PREFIX + userId;
+                String key = RedisKeyUtil.getUserThumbKey(userId);
                 Object[] hashKeys = needDeleteBlogIds.stream()
                         .map(String::valueOf)
                         .toArray();

@@ -1,39 +1,43 @@
 package com.suewei.thumb.service.impl;
 
+import cn.hutool.core.date.DateTime;
+import cn.hutool.core.date.DateUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.suewei.thumb.constant.ThumbConstant;
+import com.suewei.thumb.constant.RedisLuaScriptConstant;
+import com.suewei.thumb.mapper.ThumbMapper;
 import com.suewei.thumb.model.dto.cache.ThumbCache;
 import com.suewei.thumb.model.dto.thumb.DoThumbRequest;
-import com.suewei.thumb.model.entity.Blog;
 import com.suewei.thumb.model.entity.Thumb;
 import com.suewei.thumb.model.entity.User;
+import com.suewei.thumb.model.enums.LuaStatusEnum;
+import com.suewei.thumb.model.enums.ThumbTypeEnum;
 import com.suewei.thumb.service.BlogService;
 import com.suewei.thumb.service.ThumbService;
-import com.suewei.thumb.mapper.ThumbMapper;
 import com.suewei.thumb.service.UserService;
 import com.suewei.thumb.util.RedisKeyUtil;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
 import java.util.Date;
-import java.util.List;
 
 /**
  * @author ASUS
  * @description 针对表【thumb】的数据库操作Service实现
  * @createDate 2026-03-31 18:39:15
  */
-@Service("thumbServiceDB")
-public class ThumbServiceImpl extends ServiceImpl<ThumbMapper, Thumb>
+@Service
+@Primary // 当
+public class ThumbServiceRedisImpl extends ServiceImpl<ThumbMapper, Thumb>
         implements ThumbService {
 
     @Resource
@@ -45,7 +49,10 @@ public class ThumbServiceImpl extends ServiceImpl<ThumbMapper, Thumb>
     private TransactionTemplate transactionTemplate;
 
     @Resource
-    private RedisTemplate redisTemplate;
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
     @Autowired
     private ObjectMapper objectMapper;
 
@@ -61,45 +68,63 @@ public class ThumbServiceImpl extends ServiceImpl<ThumbMapper, Thumb>
         if (doThumbRequest == null || doThumbRequest.getBlogId() == null) {
             throw new RuntimeException("参数错误");
         }
-        // 获取当前用户
+
+        // 用户id
         User user = userService.getLoginer(request);
+        Long userId = user.getId();
+        // blogId
+        Long blogId = doThumbRequest.getBlogId();
+        // 获取时间片
+        String time = getTimeSlice();
+        // 临时键
+        String tempThumbKey = RedisKeyUtil.getTempThumbKey(time);
+        // thumb用户点赞记录键
+        String userThumbKey = RedisKeyUtil.getUserThumbKey(userId);
+        // 点赞记录中的thumbId
+//        Thumb thumb = lambdaQuery()
+//                .eq(Thumb::getUserid, userId)
+//                .eq(Thumb::getBlogid, blogId)
+//                .one();
+//        Long thumbId = thumb.getId();
+        // 过期时间
+        Date createTime = blogService.getById(blogId).getCreateTime();
+        long expireTime = createTime
+                .toInstant()
+                .plus(30, ChronoUnit.DAYS)
+                .toEpochMilli();
 
-        // 锁里进行点赞操作
-        synchronized (user.getId().toString().intern()) {
-            return transactionTemplate.execute(status -> {
-                Long blogId = doThumbRequest.getBlogId();
-//                boolean exists = this.lambdaQuery()
-//                        .eq(Thumb::getBlogid, blogId)
-//                        .eq(Thumb::getUserid, user.getId())
-//                        .exists();
+//        ThumbCache thumbCache = new ThumbCache();
+//        thumbCache.setThumbId(thumbId);
+//        thumbCache.setExpireTime(expireTime);
 
-                Boolean exists = hasThumb(user.getId(), blogId);
+//        String thumbCacheJson;
+//        try {
+//            thumbCacheJson = objectMapper.writeValueAsString(thumbCache);
+//        } catch (JsonProcessingException e) {
+//            throw new RuntimeException("序列化失败", e);
+//        }
 
-                if (exists) {
-                    throw new RuntimeException("用户已点赞");
-                }
+        // 执行Lua脚本
+        Long result = stringRedisTemplate.execute(RedisLuaScriptConstant.THUMB_SCRIPT,
+                Arrays.asList(tempThumbKey, userThumbKey),
+                String.valueOf(userId),
+                String.valueOf(blogId),
+                String.valueOf(expireTime)
+        );
 
-                // 更新blog的点赞数量
-                boolean update = blogService.lambdaUpdate()
-                        .eq(Blog::getId, blogId)
-                        .setSql("thumbCount = thumbCount + 1")
-                        .update();
-
-                // 插入thump表中
-                Thumb thumb = new Thumb();
-                thumb.setBlogid(blogId);
-                thumb.setUserid(user.getId());
-
-                boolean success = update && save(thumb);
-
-                if (success) {
-                    cacheThumb(user.getId(), blogId, thumb.getId(), blogService.getById(blogId).getCreateTime());
-                }
-
-                return success;
-//                return update && save(thumb);
-            });
+        if (ThumbTypeEnum.DECR.getValue() == result){
+            throw new RuntimeException("用户已点赞");
         }
+
+        // 更新成功才执行
+        return LuaStatusEnum.SUCCESS.getValue() == result;
+    }
+
+    // 获取时间片
+    private String getTimeSlice() {
+        DateTime nowDate = DateUtil.date();
+        // 获取到当前时间最近的整数秒，比如当前 11:20:23， 获取为11:20:20
+        return DateUtil.format(nowDate, "HH:mm:") + (DateUtil.second(nowDate) / 10) * 10;
     }
 
     /**
@@ -114,54 +139,30 @@ public class ThumbServiceImpl extends ServiceImpl<ThumbMapper, Thumb>
         if (doThumbRequest == null || doThumbRequest.getBlogId() == null) {
             throw new RuntimeException("参数错误");
         }
-        // 获取当前用户
+
+        // 用户id
         User user = userService.getLoginer(request);
+        Long userId = user.getId();
+        // blogId
+        Long blogId = doThumbRequest.getBlogId();
+        // 获取时间片
+        String time = getTimeSlice();
+        // 临时键
+        String tempThumbKey = RedisKeyUtil.getTempThumbKey(time);
+        // thumb用户点赞记录键
+        String userThumbKey = RedisKeyUtil.getUserThumbKey(userId);
+        // 执行Lua脚本
+        Long result = stringRedisTemplate.execute(RedisLuaScriptConstant.UNTHUMB_SCRIPT,
+                Arrays.asList(tempThumbKey, userThumbKey),
+                String.valueOf(userId),
+                String.valueOf(blogId)
+        );
 
-        // 加锁
-        synchronized (user.getId().toString().intern()) {
-            // 事务式编程
-            return transactionTemplate.execute(status -> {
-                Long blogId = doThumbRequest.getBlogId();
-
-                String userThumbKey = RedisKeyUtil.getUserThumbKey(user.getId());
-
-                // 查找当前thumb中是否存在
-//                Thumb thumb = this.lambdaQuery()
-//                        .eq(Thumb::getBlogid, blogId)
-//                        .eq(Thumb::getUserid, user.getId())
-//                        .one();
-                // 不能强转，需要判断是否为空，否则会报空指针异常
-                Object thumbIdObj = redisTemplate.opsForHash().get(userThumbKey, blogId.toString());
-
-                if (thumbIdObj == null) {
-                    throw new RuntimeException("用户尚未点赞");
-                }
-
-                Long thumbId;
-                try {
-                    thumbId = objectMapper.readValue(thumbIdObj.toString(), ThumbCache.class).getThumbId();
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException("解析缓存失败", e);
-                }
-
-                // 更新当前blog的点赞数量
-                boolean update = blogService.lambdaUpdate()
-                        .eq(Blog::getId, blogId)
-                        .setSql("thumbCount = thumbCount - 1")
-                        .update();
-
-                // 删除当前thumb数据
-                boolean success = update && removeById(thumbId);
-                if (success) {
-                    // 删除redis中的thumb记录
-                    redisTemplate.opsForHash()
-                            .delete(userThumbKey, blogId.toString());
-                }
-
-                return success;
-            });
+        if (ThumbTypeEnum.DECR.getValue() == result){
+            throw new RuntimeException("用户未点赞");
         }
 
+        return ThumbTypeEnum.INCR.getValue() == result;
     }
 
     /**
