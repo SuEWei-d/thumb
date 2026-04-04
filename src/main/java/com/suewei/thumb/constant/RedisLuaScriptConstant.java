@@ -39,7 +39,7 @@ public class RedisLuaScriptConstant {
             local userId = ARGV[1] --用户ID
             local blogId = ARGV[2] --博客ID
             
-            -- 1.检查是否已点赞（避免重复操作）
+            -- 1.检查是否已点赞（避免重复操作） 不等于1时，为未点赞
             if redis.call('HEXISTS', userThumbKey, blogId) ~= 1 then
                 return -1 -- 未点赞，返回-1表示失败
             end
